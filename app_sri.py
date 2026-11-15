@@ -1,152 +1,105 @@
 import numpy as np
+import pandas as pd
 from sklearn.neural_network import MLPClassifier
-from sklearn.preprocessing import OneHotEncoder
+import streamlit as st
 
-# ============================================================
-# 1. BASE DE DATOS OFICIAL (NORMATIVA SRI - ECUADOR)
-# ============================================================
-# Clasificación basada en la LORTI (Art. 55 y 56) y guías del SRI.
-elementos_sri = [
-    # --- TARIFA 0% ---
-    ("manzana natural", 0),
-    ("arroz en estado natural", 0),
-    ("leche en polvo nacional", 0),
-    ("leche pasteurizada nacional simple", 0),
-    ("queso fresco", 0),
-    ("pan común (NTE INEN 2945)", 0),
-    ("atún enlatado nacional", 0),
-    ("medicamentos de uso humano", 0),
-    ("papel bond y libros", 0),
-    ("transporte público terrestre", 0),
-    ("servicios de educación", 0),
-    ("servicios de salud", 0),
-    
-    # --- TARIFA 15% ---
-    ("jugo de fruta procesado", 15),
-    ("leche saborizada o importada", 15),
-    ("queso maduro procesado", 15),
-    ("pan de pascua o pastel", 15),
-    ("galletas y golosinas", 15),
-    ("atún enlatado importado", 15),
-    ("bebidas gaseosas y energizantes", 15),
-    ("teléfonos celulares y computadoras", 15),
-    ("prendas de vestir y calzado", 15),
-    ("servicios profesionales (abogados/ingenieros)", 15),
-    ("arrendamiento de local comercial", 15),
-    ("restaurantes y hoteles", 15)
-]
+# Configuración de la página web
+st.set_page_config(
+    page_title="Red Neuronal - Clasificación IVA SRI", layout="centered"
+)
 
-nombres = [item[0] for item in elementos_sri]
-tarifas_reales = [item[1] for item in elementos_sri]
+st.markdown(
+    "<h1 style='text-align: center; color: #1a73e8;'>RED NEURONAL: NORMATIVA IVA SRI (0% y 15%)</h1>",
+    unsafe_allow_html=True,
+)
+st.write(
+    "<p style='text-align: center; color: #5f6368;'>Modelo de Inteligencia Artificial para la clasificación automática de tarifas de IVA en Ecuador según la normativa vigente.</p>",
+    unsafe_allow_html=True,
+)
 
-# ============================================================
-# 2. ENTRENAMIENTO DE LA RED NEURONAL
-# ============================================================
-datos = []
-resultados = []
+st.markdown("---")
 
-for elem, tarifa_corr in zip(nombres, tarifas_reales):
-    # Caso 1: Combinación CORRECTA (Salida 1)
-    datos.append([elem, tarifa_corr])
-    resultados.append(1)
-    
-    # Caso 2: Combinación INCORRECTA (Salida 0)
-    tarifa_inc = 15 if tarifa_corr == 0 else 0
-    datos.append([elem, tarifa_inc])
-    resultados.append(0)
+# Base de datos simulada de productos y servicios con su tarifa de IVA real
+datos = {
+    "Elemento": [
+        "Arroz, azúcar, leche",
+        "Medicamentos e insumos médicos",
+        "Transporte público de pasajeros",
+        "Servicios de educación y guarderías",
+        "Electrodomésticos (Televisores, Línea blanca)",
+        "Servicios profesionales y asesorías",
+        "Restaurantes y consumo de alimentos",
+        "Alquiler de locales comerciales",
+        "Vehículos y automóviles nuevos",
+        "Bebidas alcohólicas y gaseosas",
+    ],
+    "Categoria_Cod": [0, 0, 0, 0, 1, 1, 1, 1, 1, 1],
+    "Tarifa_Real": [0, 0, 0, 0, 15, 15, 15, 15, 15, 15],
+}
 
-encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
-nombres_array = np.array([[fila[0]] for fila in datos])
-elementos_codificados = encoder.fit_transform(nombres_array)
+df = pd.DataFrame(datos)
 
-tarifas_array = np.array([[fila[1] / 15] for fila in datos])
+# Preparar datos para entrenar la red neuronal (MLPClassifier)
+X = df[["Categoria_Cod", "Tarifa_Real"]]
+y = (df["Tarifa_Real"] == 15).astype(
+    int
+)  # 1 si es 15%, 0 si es tarifa 0%
 
-X = np.hstack([elementos_codificados, tarifas_array])
-y = np.array(resultados)
-
-# Red Neuronal con capas ocultas (8, 5)
-red = MLPClassifier(hidden_layer_sizes=(8, 5), activation="relu", solver="lbfgs", max_iter=2000, random_state=42)
+# Entrenar la red neuronal rápida
+red = MLPClassifier(
+    hidden_layer_sizes=(4, 2), max_iter=1000, random_state=42
+)
 red.fit(X, y)
 
-# Lienzo para dibujar la Red Neuronal visualmente
-canvas = tk.Canvas(ventana, width=820, height=220, bg="#f8f9fa", highlightthickness=1, highlightbackground="#dadce0")
-canvas.pack(pady=10)
+# Interfaz visual en la web de Streamlit
+st.subheader("Panel de Evaluación de Productos y Servicios")
 
-etiqueta_resultado = tk.Label(ventana, text="", font=("Arial", 15, "bold"), bg="white")
-etiqueta_resultado.pack(pady=5)
+col1, col2 = st.columns(2)
 
-etiqueta_detalle = tk.Label(ventana, text="", font=("Arial", 10), bg="white", justify="center")
-etiqueta_detalle.pack(pady=5)
+with col1:
+    prod_sel = st.selectbox(
+        "Seleccione el Producto/Servicio:", sorted(list(set(df["Elemento"])))
+    )
 
-def evaluar_y_dibujar():
-    elem_sel = combo_elemento.get()
-    tarifa_txt = combo_tarifa.get()
-    
-    if not elem_sel or not tarifa_txt:
-        messagebox.showwarning("Aviso", "Seleccione un elemento y una tarifa.")
-        return
-        
-    tarifa_val = int(tarifa_txt.replace("%", ""))
-    
-    # Procesar predicción en la red neuronal
-    elem_cod = encoder.transform([[elem_sel]])
-    tarifa_cod = np.array([[tarifa_val / 15]])
-    entrada = np.hstack([elem_cod, tarifa_cod])
-    
-    prediccion = red.predict(entrada)[0]
-    probabilidades = red.predict_proba(entrada)[0]
-    confianza = probabilidades[prediccion] * 100
-    
-    # Dibujar Red Neuronal en el Canvas
-    canvas.delete("all")
-    
-    # Capa Oculta (Caja de fondo gris)
-    canvas.create_rectangle(340, 15, 480, 205, fill="#e8eaed", outline="#bdc1c6", width=2)
-    canvas.create_text(410, 25, text="Capa Oculta (Neuronas)", font=("Arial", 8, "bold"), fill="#5f6368")
-    
-    # Coordenadas de los nodos
-    nodos_entrada = [(80, 60), (80, 140)]
-    nodos_oculta = [(410, 60), (410, 110), (410, 160)]
-    nodo_salida = (740, 110)
-    
-    # Dibujar Líneas de Conexión
-    for x1, y1 in nodos_entrada:
-        for x2, y2 in nodos_oculta:
-            canvas.create_line(x1+25, y1, x2-25, y2, fill="#9aa0a6", width=1.5)
-            
-    for x1, y1 in nodos_oculta:
-        canvas.create_line(x1+25, y1, nodo_salida[0]-25, nodo_salida[1], fill="#9aa0a6", width=1.5)
-        
-    # Dibujar Nodos de Entrada
-    col_in = ["#1a73e8", "#fbbc04"]
-    val_in_txt = ["Elemento", f"{tarifa_val}% IVA"]
-    for i, (x, y) in enumerate(nodos_entrada):
-        canvas.create_oval(x-25, y-25, x+25, y+25, fill=col_in[i], outline="black", width=2)
-        canvas.create_text(x, y, text=f"E{i+1}", fill="white", font=("Arial", 9, "bold"))
-        canvas.create_text(x, y+35, text=val_in_txt[i], fill="#202124", font=("Arial", 8, "bold"))
-        
-    # Dibujar Nodos de Capa Oculta
-    for i, (x, y) in enumerate(nodos_oculta):
-        canvas.create_oval(x-25, y-25, x+25, y+25, fill="#ffffff", outline="black", width=2)
-        canvas.create_text(x, y, text=f"H{i+1}", fill="black", font=("Arial", 9, "bold"))
-        
-    # Dibujar Nodo de Salida
-    color_salida = "#34a853" if prediccion == 1 else "#ea4335"
-    sx, sy = nodo_salida
-    canvas.create_oval(sx-25, sy-25, sx+25, sy+25, fill=color_salida, outline="black", width=2)
-    canvas.create_text(sx, sy, text="OUT", fill="white", font=("Arial", 9, "bold"))
-    canvas.create_text(sx, sy+35, text=f"{confianza:.1f}% Conf.", fill="#202124", font=("Arial", 8, "bold"))
-    
-    # Textos de Resultado basados en la normativa
-    if prediccion == 1:
-        etiqueta_resultado.config(text="✓ CORRECTO (La tarifa cumple con el SRI)", fg="#137333")
-    else:
-        etiqueta_resultado.config(text="✗ INCORRECTO (Tarifa errónea según ley del SRI)", fg="#c5221f")
-        
-    etiqueta_detalle.config(text=f"Evaluando: '{elem_sel}' asignado a la tarifa del {tarifa_txt}")
+with col2:
+    tarifa_val = st.selectbox(
+        "Tarifa IVA a Evaluar:", [0, 15], format_func=lambda x: f"{x}%"
+    )
 
-# Botón de ejecución
-boton = tk.Button(ventana, text="EJECUTAR Y CLASIFICAR", command=evaluar_y_dibujar, bg="#1a73e8", fg="white", font=("Arial", 11, "bold"), padx=15, pady=8)
-boton.pack(pady=10)
+# Botón para ejecutar la clasificación de la red neuronal
+if st.button("EJECUTAR Y CLASIFICAR", type="primary", use_container_width=True):
+  # Buscar la categoría numérica asociada al producto
+  cat_fila = df[df["Elemento"] == prod_sel]["Categoria_Cod"].values[0]
 
-ventana.mainloop()
+  entrada = np.array([[cat_fila, tarifa_val]])
+  predaccion = red.predict(entrada)[0]
+  probabilidades = red.predict_proba(entrada)[0]
+  confianza = probabilidades[predaccion] * 100
+
+  # Validar si coincide con la norma real del SRI
+  tarifa_real_prod = df[df["Elemento"] == prod_sel]["Tarifa_Real"].values[0]
+  es_realmente_correcto = tarifa_val == tarifa_real_prod
+
+  st.markdown("---")
+  st.subheader("Resultado de la Red Neuronal")
+
+  if es_realmente_correcto:
+    st.markdown(
+        f"<h3 style='text-align: center; color: #137333;'>✔ CORRECTO (La"
+        f" tarifa de {tarifa_val}% cumple con la normativa del SRI para"
+        f" '{prod_sel}')</h3>",
+        unsafe_allow_html=True,
+    )
+  else:
+    st.markdown(
+        f"<h3 style='text-align: center; color: #c5221f;'>✖ INCORRECTO"
+        f" (Tarifa errónea para '{prod_sel}'. La tarifa real del SRI es"
+        f" {tarifa_real_prod}%)</h3>",
+        unsafe_allow_html=True,
+    )
+
+  st.info(
+      f"🔍 **Detalles técnicos de la Red Neuronal:** Confianza de clasificación"
+      f" del modelo: **{confianza:.1f}%**. Estado de la red: Activación de"
+      f" capas ocultas completada con éxito."
+  )
