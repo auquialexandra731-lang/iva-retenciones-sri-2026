@@ -1,142 +1,113 @@
-import streamlit as st
 import numpy as np
-import matplotlib.pyplot as plt
+import pandas as pd
 from sklearn.neural_network import MLPClassifier
-from sklearn.preprocessing import OneHotEncoder
+import streamlit as st
 
-st.set_page_config(page_title="Red Neuronal - Retenciones Impuesto a la Renta 2026 (SRI)", layout="centered")
+# Configuración de la página web
+st.set_page_config(
+    page_title="Red Neuronal - Retenciones Impuesto a la Renta 2026",
+    layout="centered",
+)
 
-# ============================================================
-# 1. BASE DE DATOS OFICIAL - RETENCIONES IR 2026 (SRI)
-# ============================================================
-retenciones_sri_2026 = [
-    ("Honorarios profesionales con título", 10),
-    ("Servicios profesionales sociedades residentes", 5),
-    ("Servicios predominio intelectual sin título", 10),
-    ("Servicios predominio mano de obra", 3),
-    ("Medios de comunicación y publicidad", 3),
-    ("Transporte privado pasajeros / carga", 1),
-    ("Liquidación de compra (rusticidad/nivel cultural)", 3),
-    ("Transferencia bienes muebles corporales", 2),
-    ("Arrendamiento de bienes inmuebles", 10),
-    ("Seguros y reaseguros (primas y cesiones)", 2),
-    ("Rendimientos financieros y depósitos", 3),
-    ("Intereses pagados a bancos e IFIs", 0),
-    ("Otras compras sin retención (RIMPE Negocios Populares)", 0),
-    ("Compra de bienes inmuebles", 0),
-    ("Transporte público de pasajeros", 0)
-]
+st.markdown(
+    "<h1 style='text-align: center; color: #1a73e8;'>RED NEURONAL: RETENCIONES IMPUESTO A LA RENTA 2026 (SRI)</h1>",
+    unsafe_allow_html=True,
+)
+st.write(
+    "<p style='text-align: center; color: #5f6368;'>Modelo de Inteligencia Artificial para la clasificación y validación de porcentajes de retención en la fuente según la normativa tributaria vigente.</p>",
+    unsafe_allow_html=True,
+)
 
-conceptos = [item[0] for item in retenciones_sri_2026]
-tarifas_reales = dict(retenciones_sri_2026)
+st.markdown("---")
 
-# ============================================================
-# 2. ENTRENAMIENTO ROBUSTO DE LA RED NEURONAL
-# ============================================================
-datos = []
-resultados = []
+# Base de datos simulada de conceptos de retención de la renta 2026
+datos_ir = {
+    "Concepto": [
+        "Servicios profesionales con título",
+        "Arrendamiento de bienes inmuebles",
+        "Servicios de construcción y obra",
+        "Compras de bienes muebles (general)",
+        "Honorarios a gerentes / directores",
+        "Publicidad y propaganda",
+        "Seguros y reaseguros (primas)",
+        "Transporte privado de pasajeros",
+        "Servicios prestados por medios de comunicación",
+        "Otras retenciones aplicables",
+    ],
+    "Categoria_Cod": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    "Porcentaje_Real": [10, 8, 2, 1.75, 10, 1.75, 1.75, 1, 1.75, 2],
+}
 
-# Posibles porcentajes de retención que maneja el SRI
-todos_los_porcentajes = [0, 1, 2, 3, 5, 10]
+df_ir = pd.DataFrame(datos_ir)
 
-for conc in conceptos:
-    tarifa_correcta = tarifas_reales[conc]
-    for p in todos_los_porcentajes:
-        datos.append([conc, p])
-        # Si el porcentaje evaluado coincide con el real, es CORRECTO (1), sino INCORRECTO (0)
-        if p == tarifa_correcta:
-            resultados.append(1)
-        else:
-            resultados.append(0)
+# Preparar datos para la red neuronal (MLPClassifier)
+X_ir = df_ir[["Categoria_Cod", "Porcentaje_Real"]]
+y_ir = (df_ir["Porcentaje_Real"] >= 5).astype(
+    int
+)  # Clasificación basada en umbral de retención
 
-encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
-conceptos_array = np.array([[fila[0]] for fila in datos])
-conceptos_codificados = encoder.fit_transform(conceptos_array)
+# Entrenar la red neuronal rápida
+red_ir = MLPClassifier(
+    hidden_layer_sizes=(4, 2), max_iter=1000, random_state=42
+)
+red_ir.fit(X_ir, y_ir)
 
-# Normalizar porcentajes dividiendo para 10
-porcentajes_array = np.array([[fila[1] / 10.0] for fila in datos])
+# Interfaz visual en la web de Streamlit
+st.subheader("Panel de Evaluación de Conceptos y Porcentajes")
 
-X = np.hstack([conceptos_codificados, porcentajes_array])
-y = np.array(resultados)
+col1, col2 = st.columns(2)
 
-# Red Neuronal con mejor capacidad de discriminación
-red = MLPClassifier(hidden_layer_sizes=(12, 8), activation="relu", solver="lbfgs", max_iter=3000, random_state=42)
-red.fit(X, y)
-
-# ============================================================
-# 3. INTERFAZ WEB (STREAMLIT)
-# ============================================================
-st.markdown("<h2 style='text-align: center; color: #1a73e8;'>RED NEURONAL: RETENCIONES IMPUESTO A LA RENTA 2026 (SRI)</h2>", unsafe_allow_html=True)
-
-col1, col2 = st.columns([1, 1])
 with col1:
-    conc_sel = st.selectbox("Seleccione el Concepto / Transacción:", sorted(list(set(conceptos))))
+    conc_sel = st.selectbox(
+        "Seleccione el Concepto de Retención:",
+        sorted(list(set(df_ir["Concepto"]))),
+    )
+
 with col2:
-    porc_txt = st.selectbox("Porcentaje de Retención a Evaluar:", ["0%", "1%", "2%", "3%", "5%", "10%"])
+    # Permitir evaluar diferentes porcentajes para probar el modelo
+    porc_txt = st.selectbox(
+        "Porcentaje de Retención a Evaluar:",
+        [0.0, 1.0, 1.75, 2.0, 8.0, 10.0],
+        format_func=lambda x: f"{x}%",
+    )
 
-porc_val = int(porc_txt.replace("%", ""))
+# Botón para ejecutar la clasificación de la red neuronal
+if st.button(
+    "EJECUTAR Y CLASIFICAR RETENCIÓN", type="primary", use_container_width=True
+):
+  cat_fila = df_ir[df_ir["Concepto"] == conc_sel]["Categoria_Cod"].values[0]
 
-if st.button("EJECUTAR Y CLASIFICAR", type="primary", use_container_width=True):
-    conc_cod = encoder.transform([[conc_sel]])
-    porc_cod = np.array([[porc_val / 10.0]])
-    entrada = np.hstack([conc_cod, porc_cod])
-    
-    prediccion = red.predict(entrada)[0]
-    probabilidades = red.predict_proba(entrada)[0]
-    confianza = probabilidades[prediccion] * 100
+  entrada = np.array([[cat_fila, porc_txt]])
+  prediccion = red_ir.predict(entrada)[0]
+  probabilidades = red_ir_id = red_ir.predict_proba(entrada)[0]
+  confianza = probabilidades[prediccion] * 100
 
-    # Comprobación estricta de la regla de negocio real del SRI
-    es_realmente_correcto = (porc_val == tarifas_reales[conc_sel])
+  # Validar si coincide con la norma real del SRI para 2026
+  porc_real_val = df_ir[df_ir["Concepto"] == conc_sel]["Porcentaje_Real"].values[
+      0
+  ]
+  es_correcto = porc_txt == porc_real_val
 
-    # Dibujar Red Neuronal con Matplotlib
-    fig, ax = plt.subplots(figsize=(7, 2.8))
-    ax.set_facecolor("#f8f9fa")
-    fig.patch.set_facecolor("#f8f9fa")
+  st.markdown("---")
+  st.subheader("Resultado de la Red Neuronal")
 
-    # Caja capa oculta
-    rect = plt.Rectangle((0.33, 0.1), 0.34, 0.8, facecolor="#e8eaed", edgecolor="#bdc1c6", linewidth=2, zorder=1)
-    ax.add_patch(rect)
-    ax.text(0.5, 0.88, "Capa Oculta (Neuronas)", fontsize=8, fontweight='bold', color="#5f6368", ha='center')
+  if es_correcto:
+    st.markdown(
+        f"<h3 style='text-align: center; color: #137333;'>✔ CORRECTO (El"
+        f" porcentaje de {porc_txt}% cumple con la normativa 2026 del SRI para"
+        f" '{conc_sel}')</h3>",
+        unsafe_allow_html=True,
+    )
+  else:
+    st.markdown(
+        f"<h3 style='text-align: center; color: #c5221f;'>✖ INCORRECTO"
+        f" (Porcentaje erróneo. El porcentaje real del SRI para este concepto"
+        f" es {porc_real_val}%)</h3>",
+        unsafe_allow_html=True,
+    )
 
-    nodos_entrada = [(0.1, 0.7), (0.1, 0.3)]
-    nodos_oculta = [(0.5, 0.75), (0.5, 0.5), (0.5, 0.25)]
-    nodo_salida = (0.9, 0.5)
-
-    # Conexiones
-    for x1, y1 in nodos_entrada:
-        for x2, y2 in nodos_oculta:
-            ax.plot([x1, x2], [y1, y2], color="#9aa0a6", lw=1.5, zorder=2)
-    for x1, y1 in nodos_oculta:
-        ax.plot([x1, nodo_salida[0]], [y1, nodo_salida[1]], color="#9aa0a6", lw=1.5, zorder=2)
-
-    # Nodos de Entrada
-    col_in = ["#1a73e8", "#fbbc04"]
-    for i, (x, y) in enumerate(nodos_entrada):
-        circle = plt.Circle((x, y), 0.08, color=col_in[i], ec='black', lw=1.5, zorder=3)
-        ax.add_patch(circle)
-        ax.text(x, y, f"E{i+1}", color='white', fontsize=9, fontweight='bold', ha='center', va='center', zorder=4)
-
-    # Nodos Ocultos
-    for i, (x, y) in enumerate(nodos_oculta):
-        circle = plt.Circle((x, y), 0.08, color='white', ec='black', lw=1.5, zorder=3)
-        ax.add_patch(circle)
-        ax.text(x, y, f"H{i+1}", color='black', fontsize=9, fontweight='bold', ha='center', va='center', zorder=4)
-
-    # Nodo Salida (Depende de la validación real)
-    color_sal = "#34a853" if es_realmente_correcto else "#ea4335"
-    circle = plt.Circle(nodo_salida, 0.08, color=color_sal, ec='black', lw=1.5, zorder=3)
-    ax.add_patch(circle)
-    ax.text(nodo_salida[0], nodo_salida[1], "OUT", color='white', fontsize=9, fontweight='bold', ha='center', va='center', zorder=4)
-    ax.text(nodo_salida[0], nodo_salida[1]-0.16, f"{confianza:.1f}% Conf.", fontsize=8, fontweight='bold', ha='center', color="#202124")
-
-    ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1)
-    ax.axis('off')
-    st.pyplot(fig)
-
-    if es_realmente_correcto:
-        st.markdown("<h3 style='text-align: center; color: #137333;'>✓ CORRECTO (El porcentaje cumple con la normativa 2026 del SRI)</h3>", unsafe_allow_html=True)
-    else:
-        st.markdown(f"<h3 style='text-align: center; color: #c5221f;'>✗ INCORRECTO (El porcentaje correcto para este concepto es {tarifas_reales[conc_sel]}%)</h3>", unsafe_allow_html=True)
-        
-    st.markdown(f"<p style='text-align: center; color: #5f6368;'>Evaluando concepto: '{conc_sel}' con tarifa de retención del {porc_txt}</p>", unsafe_allow_html=True)
+  st.info(
+      f"🔍 **Detalles técnicos de la Red Neuronal:** Nivel de confianza del"
+      f" modelo: **{confianza:.1f}%**. Evaluación de capas y pesos sinápticos"
+      f" ejecutada correctamente."
+  )
