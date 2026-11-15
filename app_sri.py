@@ -68,31 +68,6 @@ y = np.array(resultados)
 red = MLPClassifier(hidden_layer_sizes=(8, 5), activation="relu", solver="lbfgs", max_iter=2000, random_state=42)
 red.fit(X, y)
 
-# ============================================================
-# 3. INTERFAZ GRÁFICA (VENTANA DE WINDOWS)
-# ============================================================
-ventana = tk.Tk()
-ventana.title("Red Neuronal - Clasificación IVA SRI (Ecuador)")
-ventana.geometry("900x700")
-ventana.configure(bg="white")
-
-titulo = tk.Label(ventana, text="RED NEURONAL: NORMATIVA IVA SRI (0% y 15%)", font=("Arial", 16, "bold"), bg="white", fg="#1a73e8")
-titulo.pack(pady=15)
-
-# Marco de Selección
-marco_inputs = tk.Frame(ventana, bg="white")
-marco_inputs.pack(pady=5)
-
-tk.Label(marco_inputs, text="Seleccione el Producto/Servicio:", font=("Arial", 11, "bold"), bg="white").grid(row=0, column=0, padx=10, sticky="w")
-combo_elemento = ttk.Combobox(marco_inputs, values=sorted(list(set(nombres))), state="readonly", width=38, font=("Arial", 11))
-combo_elemento.grid(row=0, column=1, padx=10)
-if nombres: combo_elemento.current(0)
-
-tk.Label(marco_inputs, text="Tarifa IVA a Evaluar:", font=("Arial", 11, "bold"), bg="white").grid(row=1, column=0, padx=10, pady=10, sticky="w")
-combo_tarifa = ttk.Combobox(marco_inputs, values=["0%", "15%"], state="readonly", width=38, font=("Arial", 11))
-combo_tarifa.grid(row=1, column=1, padx=10, pady=10)
-combo_tarifa.current(0)
-
 # Lienzo para dibujar la Red Neuronal visualmente
 canvas = tk.Canvas(ventana, width=820, height=220, bg="#f8f9fa", highlightthickness=1, highlightbackground="#dadce0")
 canvas.pack(pady=10)
